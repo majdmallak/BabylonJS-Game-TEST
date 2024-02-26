@@ -333,7 +333,7 @@
     "type": "git",
     "url": "(https://github.com/majdmallak/BabylonJS-Game-TEST.git)"
   },
-  "homepage": "https://github.com/majdmallak/BabylonJS-Game-TEST/blob/main/README.md",
+  "homepage": "https://github.com/majdmallak/BabylonJS-Game-TEST#readme",
   "author": "majdmallak",
   "license": "ISC"
 }
