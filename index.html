@@ -1,24 +1,74 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Babylon js game test</title><link rel="icon" type="image/x-icon" href="./favicon.ico"><style>html, body {
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Babylon.js Game Test</title><link rel="icon" type="image/x-icon" href="./favicon.ico"><style>html, body {
             overflow: hidden;
             width: 100%;
             height: 100%;
             margin: 0;
             padding: 0;
+            background-image: url('./mainMenuPic.png'); 
+            background-size: cover; 
+            background-position: center; 
         }
         #renderCanvas {
+            position: absolute;
             width: 100%;
             height: 100%;
             touch-action: none;
+            z-index: 998;
         }
-        #fps {
+        #mainMenu {
             position: absolute;
-            background-color: black;
-            border: 2px solid red;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             text-align: center;
-            font-size: 16px;
+            z-index: 1000; 
+        }
+        #menu {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000; 
+        }
+        #menu button {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #007bff;
             color: white;
-            top: 15px;
-            right: 10px;
-            width: 60px;
-            height: 20px;
-        }</style><link rel="icon" href="favicon.ico"><script defer="defer" src="js/babylonBundle.js"></script></head><body><canvas id="renderCanvas" touch-action="none"></canvas><div id="fps">0</div></body></html>
+            border: none;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+        }
+        #startButton {
+            font-size: 24px; 
+            background-color: transparent; 
+            border: none; 
+            position: relative;
+            top: -4cm; 
+        }
+        #menuButton {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 999;
+        }
+        #endGame {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 1000; 
+        }
+        #endGame button {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-family: Arial, sans-serif; 
+        }</style><link rel="icon" href="favicon.ico"><script defer="defer" src="js/babylonBundle.js"></script></head><body id="gameBody"><canvas id="renderCanvas"></canvas><div id="mainMenu"><button id="startButton">Start Game</button></div><div id="menu" style="display: none;"><button id="resumeButton">Return to Game</button> <button id="mainMenuButton">Back to Main Menu</button></div><button id="menuButton" style="display: none;">Menu</button></body><div id="endGame" style="display: none;"><button id="endGameButton">Back to Main Menu</button> <img src="public/endGamePic.jpg"></div></html>
