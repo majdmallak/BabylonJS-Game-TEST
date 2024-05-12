@@ -1,78 +1,79 @@
-import { Material, MeshBuilder, SceneLoader, StandardMaterial, Vector3 } from "@babylonjs/core";
-import arenaLevel1Url from "../assets/Models/arena_level1.glb";
+import { MeshBuilder, SceneLoader, Vector3 } from '@babylonjs/core';
+import { GridMaterial } from '@babylonjs/materials';
+import "@babylonjs/loaders/glTF";
 
 
+
+import { GlobalManager } from './globalmanager';
 
 class Arena {
 
-    scene;
-    camera;
-
     mesh;
 
-    playerSpawnPoint;//peut etre un tableau pour contenir plusieurs spawn point
+    playerSpawnPoint;
 
-    constructor(scene, camera) {
-        this.scene = scene;
-        this.camera = camera;
+    assetContainer = null;
+
+    constructor() {
     }
 
-    // async init() {
-    //     const result = await SceneLoader.ImportMeshAsync("", "", arenaLevel1Url, this.scene);
-    //     this.mesh = result.meshes[0];
-
-    //     // Inside the init() method
-    //     const groundMaterial = new StandardMaterial("groundMaterial", this.scene);
-    //     // const texture = new Texture("red-background-material.jpg", this.scene);
-    //     // groundMaterial.diffuseTexture = texture;
-    //     this.mesh.material = groundMaterial;
-    //     for (let childMesh of result.meshes) {
-    //         if (childMesh.name.includes("spawn_p1")) {
-    //             //spawn player 
-    //             childMesh.computeWorldMatrix(true);
-    //             this.playerSpawnPoint = childMesh.getAbsolutePosition();
-    //             childMesh.dispose();
-    //         }
-    //         else {
-    //             if (childMesh.getTotalVertices() > 0) {
-    //                 //objet 3d
-    //             }
-    //             else {
-    //             }
-    //         }
-
-    //         this.mesh = result.meshes[0];
-    //     }
-    // }
     async init() {
-        const result = await SceneLoader.ImportMeshAsync("", "", arenaLevel1Url, this.scene);
-    
-        // // Define your custom material outside the loop
-        //  const groundMaterial = new StandardMaterial("groundMaterial", this.scene);
-        //  groundMaterial.diffuseTexture = new Texture(floorTexture, this.scene);
-    
-        result.meshes.forEach((childMesh) => {
-            if (childMesh.name.includes("spawn_p1")) {
-                // Handle spawn point logic
-                childMesh.computeWorldMatrix(true);
-                this.playerSpawnPoint = childMesh.getAbsolutePosition();
-                childMesh.dispose(); // Consider if disposing is necessary, as it removes the mesh
-            // } else {
-            //     // Apply the custom material to each mesh
-            //     // childMesh.material = groundMaterial;
+
+    }
+
+    async loadLevel(level) {
+        try {
+            if (this.assetContainer) {
+                this.assetContainer.dispose();
             }
-        });
+    
+            this.assetContainer = await SceneLoader.LoadAssetContainerAsync("", level.model, GlobalManager.scene);
+            this.assetContainer.addAllToScene();
+    
+            for (let aNode of this.assetContainer.transformNodes) {
+                if (aNode.name.includes("Spawn_p1")) {
+                    //Player start 
+                    aNode.computeWorldMatrix(true);
+                    this.playerSpawnPoint = aNode.getAbsolutePosition();
+                    aNode.dispose();
+                }
+            }
+    
+            // Enable collisions for obstacle meshes
+            for (let childMesh of this.assetContainer.meshes) {
+                if (childMesh.metadata && childMesh.metadata.gltf && childMesh.metadata.gltf.extras) {
+                    let extras = childMesh.metadata.gltf.extras;
+                    //Recup les datas supp.
+                    console.log(extras);
+                }
+                if (childMesh.getTotalVertices() > 0) {
+                    // Objet 3D
+                    childMesh.receiveShadows = true;
+                    GlobalManager.addShadowCaster(childMesh);
+                } else {
+                    // RAS
+                }
+    
+               
+            }
+        } catch (error) {
+            console.error("Error loading level:", error);
+            // Handle the error, such as displaying a message to the user or retrying the operation
+        }
     }
     
+    
 
-    update(delta) {
-    }
-    getSpawnPoint(PlayerIndex) {
-
+    
+    // PlayerIndex as a parameter (later)
+    getSpawnPoint() {
         return this.playerSpawnPoint.clone();
     }
-    
-    
+
+    update() {
+
+    }
 
 }
-export default Arena;   
+
+export default Arena;

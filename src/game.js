@@ -1,48 +1,65 @@
-import {AxesViewer, Color3, FollowCamera, FreeCamera, HemisphericLight, KeyboardEventTypes, MeshBuilder, Scalar, Scene, SceneLoader, StandardMaterial, Vector3 } from "@babylonjs/core";
-import Player from "./player";
-import { GridMaterial } from "@babylonjs/materials";
+import { Color3, Color4, CreateGround, CubeTexture, DirectionalLight, Engine, FollowCamera, FreeCamera, HDRCubeTexture, HemisphericLight, KeyboardEventTypes, Material, Scene, ShadowGenerator, Sound, Vector3 } from "@babylonjs/core";
+import "@babylonjs/loaders/glTF";
 
-import { Inspector } from "@babylonjs/inspector";
-import Arena from "./arena";
-// import meshUrl from "../assets/Models/HVGirl.glb"
 
+import musicUrl from "../assets/music/ambientMusic.mp3";
+
+import Player from './player';
+import Arena from './arena';
+import { GlobalManager } from './globalmanager';
+import { levels } from './levels';
+import CollisionSystem from "./collisionSystem";
+import Menu from "./menu";
 
 class Game {
     engine;
     canvas;
     scene;
-    arena;
-    startTimer;
-    player;
 
-    cameraArena;
-    playerCamera;
+    camera;
     light;
-    bInspector = false;
-    actions = {};
-    inputMap = {};
+    menu;
+    startTimer;
 
+    player;
+    arena;
+    inputMap = {};
+    actions = {};
+    dead = false;
+    bInspector = false;
+
+    currentLevel = 0;
+    gameState = {
+        level: 0,
+        playerPosition: null
+    };
     constructor(engine, canvas) {
-        this.engine = engine;
-        this.canvas = canvas;
+        GlobalManager.engine = engine;
+        GlobalManager.canvas = canvas;
     }
+
     async init() {
-        this.engine.displayLoadingUI();
+        GlobalManager.engine.displayLoadingUI();
         await this.createScene();
-        this.arena = new Arena(this.scene, this.cameraArena);
-        await this.arena.init();
-        this.player = new Player(this.scene, this.cameraArena, this.arena.playerSpawnPoint);
-        await this.player.init();
         this.initKeyboard();
-        this.engine.hideLoadingUI();
-    }
-   
+
+        this.arena = new Arena();
+        await this.arena.init();
+        await this.arena.loadLevel(levels[this.currentLevel]);
+
+        this.player = new Player(this.arena.playerSpawnPoint);
+        await this.player.init();
+        this.collisionSystem = new CollisionSystem(GlobalManager.scene);
+        this.menu = new Menu();
+       this.collisionsEnabled();
+      
     
+        GlobalManager.engine.hideLoadingUI();
+    }
 
 
     initKeyboard() {
-
-        this.scene.onKeyboardObservable.add((kbInfo) => {
+        GlobalManager.scene.onKeyboardObservable.add((kbInfo) => {
             switch (kbInfo.type) {
                 case KeyboardEventTypes.KEYDOWN:
                     this.inputMap[kbInfo.event.code] = true;
@@ -56,62 +73,178 @@ class Game {
     }
 
     async start() {
+        if (this.dead) {
+            this.dead = false;
+        }
         await this.init();
-        Inspector.Show(this.scene,{});
-        this.startTimer = 0;
-        this.engine.runRenderLoop(() => {
-            let delta = this.engine.getDeltaTime() / 1000.0;
-            this.update(delta);
-            if (this.actions["KeyI"]) {
-                if (this.bInspector) {
-                    Inspector.Hide();
-                } else {
-                Inspector.Show(this.scene, {});
-                }
-                this.bInspector = !this.bInspector;
+        GlobalManager.engine.runRenderLoop(() => {
+
+            const deltaTime = GlobalManager.engine.getDeltaTime() / 1000;
+            GlobalManager.update(deltaTime);
+
+            this.update(deltaTime);
+            this.player.update(this.inputMap, deltaTime);
+            this.collisionSystem.checkCollisions(this.player.mesh);
+
+            this.storeGameState();
+            
+            if (this.actions["KeyN"]) {
+                this.currentLevel++;
+                if (this.currentLevel >= levels.length) this.currentLevel = 0;
+                
+                GlobalManager.engine.displayLoadingUI();
+                this.arena.loadLevel(levels[this.currentLevel]).then(() => {
+                    // Reset player position to the spawn point of the new level
+                    this.player.mesh.position.copyFrom(this.arena.playerSpawnPoint);
+                    this.collisionSystem.enableCollision("HVGirl_primitive6"); 
+                    this.collisionSystem.enableCollision("obstacle1");
+                    this.collisionSystem.enableCollision("obstacle2");
+                    this.collisionSystem.enableCollision("obstacle3");
+                    this.collisionSystem.enableCollision("obstacle4");
+                    this.collisionSystem.enableCollision("obstacle5");
+                    this.collisionSystem.enableCollision("obstacle6");
+                    this.collisionSystem.enableCollision("obstacle7");
+                    this.collisionSystem.enableCollision("obstacle8");
+                    this.collisionSystem.enableCollision("obstacle9");
+                    this.collisionSystem.enableCollision("obstacle10");
+                    this.collisionSystem.enableCollision("finishLineFlag");
+                    GlobalManager.engine.hideLoadingUI();
+                });
             }
-            // Reset actions
+            
+
             this.actions = {};
-            this.scene.render();
+
+            GlobalManager.scene.render();
+            if (this.dead) {
+                GlobalManager.engine.stopRenderLoop();
+            }
         });
     }
 
-    update(delta) {
-        this.arena.update(delta);
-        this.player.update(delta, this.inputMap, this.actions);
-        this.startTimer += delta;
+    update(deltaTime) {
+        this.arena.update(deltaTime);
+        this.startTimer += deltaTime;
+    }
+    storeGameState() {
+        this.gameState.level = this.currentLevel;
+        if (this.gameState.playerPosition) {
+            this.player.position.copyFrom(this.gameState.playerPosition);
+        }
+    }
+
+    restoreGameState() {
+        this.currentLevel = this.gameState.level;
+        if (this.gameState.playerPosition) {
+            this.player.position.copyFrom(this.gameState.playerPosition);
+        }
+    }
+    continueGame() {
+        this.start();
+    }
+    resetGameState() {
+        this.dead = true;
+        this.gameState.level = 0;
+        this.resetPlayerPosition();
+    }
+    pauseGame() {
+        GlobalManager.engine.stopRenderLoop();
+        this.player.isGamePaused = true;
 
     }
-    updateMoves(delta) {
+    resetPlayerPosition() {
+        // Check if the player and spawn point are defined
+        if (this.player && this.arena && this.arena.playerSpawnPoint) {
+            // Set the player's position to the spawn point
+            this.player.mesh.position.copyFrom(this.arena.playerSpawnPoint);
+        } else {
+            console.error("Player or spawn point is not defined.");
+        }
+    }
+
+    collisionsEnabled()  {
+        this.collisionSystem.enableCollision("HVGirl_primitive6");
+        this.collisionSystem.enableCollision("obstacle1");
+        this.collisionSystem.enableCollision("obstacle2");
+        this.collisionSystem.enableCollision("obstacle3");
+        this.collisionSystem.enableCollision("obstacle4");
+        this.collisionSystem.enableCollision("obstacle5");
+        this.collisionSystem.enableCollision("obstacle6");
+        this.collisionSystem.enableCollision("obstacle7");
+        this.collisionSystem.enableCollision("finishLineFlag");
         
-    }
+        this.collisionSystem.onCollisionEnter("finishLineFlag" , () => {
+            this.pauseGame();
+            this.menu.endGame();  
+            this.resetGameState();  
 
+        });
+
+        this.collisionSystem.onCollisionEnter("obstacle1" , () => {
+            this.pauseGame();
+            this.menu.endGame();
+            this.resetGameState();
+
+        });
+        this.collisionSystem.onCollisionEnter("obstacle2" , () => {
+            this.pauseGame();
+            this.menu.endGame();
+            this.resetGameState();
+
+        });
+        this.collisionSystem.onCollisionEnter("obstacle3" , () => {
+            this.pauseGame();
+            this.menu.endGame();
+            this.resetGameState();
+
+        });
+        this.collisionSystem.onCollisionEnter("obstacle4" , () => {
+            this.pauseGame();
+            this.menu.endGame();
+            this.resetGameState();
+
+        });
+        this.collisionSystem.onCollisionEnter("obstacle5" , () => {
+            this.pauseGame();
+            this.menu.endGame();
+            this.resetGameState();
+
+        });
+        this.collisionSystem.onCollisionEnter("obstacle6" , () => {
+            this.pauseGame();
+            this.menu.endGame();
+            this.resetGameState();
+
+        });
+        this.collisionSystem.onCollisionEnter("obstacle7" , () => {
+            this.pauseGame();
+            this.menu.endGame();
+            this.resetGameState();
+
+        });
+    }
     async createScene() {
-        // Create a basic bjs scence object (non mesh)  
-        this.scene = new Scene(this.engine);
-        this.scene.clearColor = new Color3(0.4, 0.4, 1);   
-        // this.scene.collisionsEnabled = true;   
-
-        // creates and positions a free camera ( non-mesh)
-        this.cameraArena = new FreeCamera("camera1", new Vector3(0, 5, -10), this.scene);
-        // targets the camera to scene origin
-        this.cameraArena.setTarget(new Vector3(0, 0, 0));
-        // attaches the camera to the canvas
-        this.cameraArena.attachControl(this.canvas, true);
-       
-        // creates a basic light, aiming 0,1,0 - to the sky (non-mesh)
-        this.light = new HemisphericLight("light", new Vector3(0, 1, 0), this.scene);
-        // default intensity is 1, lets dim the light a small amount
-        this.light.intensity = 1.0;
-
-        // new AxesViewer(this.scene, 5);
-
-        // SceneLoader.ImportMesh("", "", meshUrl, this.scene, (newMeshes) => {
-        //     newMeshes[0].name = "player";
-        //     newMeshes[0].scaling = new Vector3(0.1, 0.1, 0.1);
-        //     this.camera.target = newMeshes[0];
-        // });
-        return this.scene;
+        GlobalManager.scene = new Scene(GlobalManager.engine);
+    
+        GlobalManager.camera = new FollowCamera("FollowCam", new Vector3(0, 10, -10), GlobalManager.scene);
+        GlobalManager.camera.lockedTarget = this.player;
+        GlobalManager.camera.radius = 10;
+        GlobalManager.camera.heightOffset = 4;
+        GlobalManager.camera.rotationOffset = 180;
+        GlobalManager.camera.cameraAcceleration = 0.05;
+        GlobalManager.camera.maxCameraSpeed = 20;
+    
+        // Remove camera inputs
+        GlobalManager.camera.inputs.clear();
+    
+        GlobalManager.light = new HemisphericLight("light", new Vector3(0, 1, 0), GlobalManager.scene);
+        GlobalManager.light.diffuse = new Color3(1, 1, 1);
+        GlobalManager.light.specular = new Color3(1, 1, 1);
+        GlobalManager.light.groundColor = new Color3(0.2, 0.2, 0.2);
+    
+        this.music = new Sound("music", musicUrl, GlobalManager.scene, undefined, { loop: true, autoplay: false, volume: 0.4 });
     }
+    
 }
-export default Game;
+
+export { Game as default, Game };
